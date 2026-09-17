@@ -1,0 +1,39 @@
+name: Terraform CI/CD
+ 
+on:
+  push:
+    branches:
+      - main  # Change as needed
+ 
+permissions:
+  id-token: write
+  contents: read
+ 
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+ 
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+ 
+      - name: Configure AWS credentials using OIDC
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: arn:aws:iam::010438461903:role/Githubactionrole
+          aws-region: us-east-1  # Change as needed
+ 
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.5.6  # Use desired Terraform version
+ 
+      - name: Terraform Init
+        run: terraform init
+ 
+      - name: Terraform Plan
+        run: terraform plan
+ 
+      - name: Terraform Apply
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: terraform apply -auto-approve
