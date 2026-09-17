@@ -16,6 +16,11 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
+        
+
+      - name: Debug OIDC claims
+        uses: github/action-oidc-debugger@main
+      
  
       - name: Configure AWS credentials using OIDC
         uses: aws-actions/configure-aws-credentials@v2
