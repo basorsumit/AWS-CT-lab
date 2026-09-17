@@ -1,44 +1,65 @@
 name: AWS OIDC Test
- 
 on:
-  push:
-    branches:
-      - main  # Change as needed
- 
+ push:
+   branches:
+     - main
+ workflow_dispatch:
 permissions:
-  id-token: write
-  contents: read
- 
+ id-token: write
+ contents: read
 jobs:
-  terraform:
-    runs-on: ubuntu-latest
- 
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-        
-      - name: Debug OIDC claims
-        uses: github/actions-oidc-debugger@main
-        with:
-          audience: 'sts.amazonaws.com'
-      
-       - name: Configure AWS credentials using OIDC
-        uses: aws-actions/configure-aws-credentials@v2
-        with:
-          role-to-assume: arn:aws:iam::650687537318:role/GitHubActionsRole
-          aws-region: us-east-1  # Change as needed
- 
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v2
-        with:
-          terraform_version: 1.5.6  # Use desired Terraform version
- 
-      - name: Terraform Init
-        run: terraform init
- 
-      - name: Terraform Plan
-        run: terraform plan
- 
-      - name: Terraform Apply
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        run: terraform apply -auto-approve
+ terraform:
+   runs-on: ubuntu-latest
+   steps:
+     # 1. Checkout repository
+     - name: Checkout repository
+       uses: actions/checkout@v7
+     # 2. Debug GitHub OIDC claims
+     #    This prints only issuer, audience and subject.
+     #    It does NOT print the OIDC token.
+     - name: Debug OIDC claims
+       shell: bash
+       run: |
+         TOKEN=$(curl -sS \
+           -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+           "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=sts.amazonaws.com" \
+           | jq -r '.value')
+         PAYLOAD=$(echo "$TOKEN" | cut -d '.' -f2)
+         python3 -c '
+         import base64
+         import json
+         import sys
+         payload = sys.argv[1]
+         payload += "=" * (-len(payload) % 4)
+         claims = json.loads(
+             base64.urlsafe_b64decode(payload)
+         )
+         print("OIDC issuer:", claims.get("iss"))
+         print("OIDC audience:", claims.get("aud"))
+         print("OIDC subject:", claims.get("sub"))
+         ' "$PAYLOAD"
+     # 3. Authenticate to AWS using GitHub OIDC
+     - name: Configure AWS credentials using OIDC
+       uses: aws-actions/configure-aws-credentials@v6.3.0
+       with:
+         role-to-assume: arn:aws:iam::650687537318:role/GitHubActionsRole
+         aws-region: us-east-1
+         audience: sts.amazonaws.com
+     # 4. Verify AWS authentication
+     - name: Verify AWS identity
+       run: aws sts get-caller-identity
+     # 5. Install Terraform
+     - name: Setup Terraform
+       uses: hashicorp/setup-terraform@v4.0.1
+       with:
+         terraform_version: 1.6.1
+     # 6. Terraform Init
+     - name: Terraform Init
+       run: terraform init
+     # 7. Terraform Plan
+     - name: Terraform Plan
+       run: terraform plan
+     # 8. Terraform Apply only on main branch push
+     - name: Terraform Apply
+       if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+       run: terraform apply -auto-approve
