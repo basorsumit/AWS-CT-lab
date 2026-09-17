@@ -17,12 +17,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
         
-
       - name: Debug OIDC claims
-        uses: github/action-oidc-debugger@main
+        uses: github/actions-oidc-debugger@main
+        with:
+          audience: 'sts.amazonaws.com'
       
- 
-      - name: Configure AWS credentials using OIDC
+       - name: Configure AWS credentials using OIDC
         uses: aws-actions/configure-aws-credentials@v2
         with:
           role-to-assume: arn:aws:iam::650687537318:role/GitHubActionsRole
